@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+- ns.yaml
+- sa.yaml
+- auth-delegator.yaml
+- auth-reader.yaml
+- rbac.yaml
+- rbac-bind.yaml
+- deployment.yaml
+- service.yaml
+- apiservice.yaml
+
+images:
+- name: kube-sample-apiserver
+  newName: binguo220.ddns.net:5000/apiserver/kube-sample-apiserver
+  newTag: latest
