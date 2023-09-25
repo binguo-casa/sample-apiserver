@@ -149,6 +149,8 @@ func (o *WardleServerOptions) Config() (*apiserver.Config, error) {
 		return nil, err
 	}
 
+	AuthorizeBasicAuth(&serverConfig.Authentication, &serverConfig.Authorization)
+
 	config := &apiserver.Config{
 		GenericConfig: serverConfig,
 		ExtraConfig:   apiserver.ExtraConfig{},
