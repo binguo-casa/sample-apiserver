@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"errors"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -75,16 +74,17 @@ func (auth *BasicAuthnAuthzer) Authorize(ctx context.Context, attr authorizer.At
 	klog.V(4).InfoS("Authorize", "ctx", ctx, "attr", attr)
 	userinfo := attr.GetUser()
 	if userinfo == nil {
-		klog.V(4).InfoS("NoUser")
-		return authorizer.DecisionNoOpinion, "Error", errors.New("no user on request.")
+		//klog.V(4).InfoS("NoUser")
+		return authorizer.DecisionNoOpinion, "", nil //"Error", errors.New("no user on request.")
 	}
 	username := userinfo.GetName()
 	basic, found := auth.BasicUsers[username]
 	if basic == nil || !found {
-		klog.V(4).InfoS("UserNotFound", "username", username)
-		return authorizer.DecisionNoOpinion, "Error", errors.New("user not found")
+		//klog.V(4).InfoS("UserNotFound", "username", username)
+		return authorizer.DecisionNoOpinion, "", nil //Error", errors.New("user not found")
 	}
 	//TODO: check verb ...
+	klog.V(4).InfoS("UserFound", "username", username)
 
 	return authorizer.DecisionAllow, "", nil
 }
