@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -27,11 +28,13 @@ type BasicAuthUser struct {
 }
 
 type BasicAuthnAuthzer struct {
+	BasicRealm string
 	BasicUsers map[string]*BasicAuthUser
 }
 
 func NewBasicAuthnAuthzer() *BasicAuthnAuthzer {
 	return &BasicAuthnAuthzer{
+		BasicRealm: "testrealm",
 		BasicUsers: map[string]*BasicAuthUser{
 			"testusername": &BasicAuthUser{
 				Name:     "testusername",
@@ -46,25 +49,27 @@ func NewBasicAuthnAuthzer() *BasicAuthnAuthzer {
 func (auth *BasicAuthnAuthzer) AuthenticateRequest(req *http.Request) (*authenticator.Response, bool, error) {
 	klog.V(4).InfoS("AuthenticateRequest", "URI", req.RequestURI, "Header", req.Header)
 	// when not proxying, check basic auth
-	if req.Header.Get("X-RemoteUser") == "" && req.Header.Get("X-RemoteGroup") == "" {
+	if req.Header.Get("X-Remote-User") == "" && req.Header.Get("X-Remote-Group") == "" {
 		username, password, ok := req.BasicAuth()
-		if ok {
-			klog.V(4).InfoS("BasicAuth", "username", username, "passsword", password)
-			basic, found := auth.BasicUsers[username]
-			if basic == nil || !found {
-				klog.V(4).InfoS("UserNotFound", "username", username)
-			} else if basic.Password != password {
-				klog.V(4).InfoS("WrongPassword", "username", username)
-			} else {
-				info := &user.DefaultInfo{
-					Name:   basic.Name,
-					UID:    basic.UID,
-					Groups: basic.Groups,
-					Extra:  basic.Extra,
-				}
-
-				return &authenticator.Response{User: info}, true, nil
+		if !ok {
+			return nil, false, fmt.Errorf("BasicAuth required")
+		}
+		klog.V(4).InfoS("BasicAuth", "username", username, "passsword", password)
+		basic, found := auth.BasicUsers[username]
+		if basic == nil || !found {
+			klog.V(4).InfoS("UserNotFound", "username", username)
+			return nil, false, fmt.Errorf("UserNotFound username=%v", username)
+		} else if basic.Password != password {
+			klog.V(4).InfoS("WrongPassword", "username", username)
+			return nil, false, fmt.Errorf("WrongPassword username=%v", username)
+		} else {
+			info := &user.DefaultInfo{
+				Name:   basic.Name,
+				UID:    basic.UID,
+				Groups: basic.Groups,
+				Extra:  basic.Extra,
 			}
+			return &authenticator.Response{User: info}, true, nil
 		}
 	}
 	return nil, false, nil
@@ -92,6 +97,6 @@ func (auth *BasicAuthnAuthzer) Authorize(ctx context.Context, attr authorizer.At
 // See AuthorizeClientBearerToken
 func AuthorizeBasicAuth(authn *server.AuthenticationInfo, authz *server.AuthorizationInfo) {
 	basicAuthnAuthzer := NewBasicAuthnAuthzer()
-	authn.Authenticator = authenticatorunion.New(basicAuthnAuthzer, authn.Authenticator)
+	authn.Authenticator = authenticatorunion.NewFailOnError(basicAuthnAuthzer, authn.Authenticator)
 	authz.Authorizer = authorizerunion.New(authz.Authorizer, basicAuthnAuthzer)
 }
