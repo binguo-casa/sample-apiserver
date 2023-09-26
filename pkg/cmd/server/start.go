@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 
 	"github.com/spf13/cobra"
 
@@ -29,6 +30,7 @@ import (
 	"k8s.io/apiserver/pkg/admission"
 	"k8s.io/apiserver/pkg/endpoints/openapi"
 	"k8s.io/apiserver/pkg/features"
+	"k8s.io/apiserver/pkg/server"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	genericoptions "k8s.io/apiserver/pkg/server/options"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -149,7 +151,10 @@ func (o *WardleServerOptions) Config() (*apiserver.Config, error) {
 		return nil, err
 	}
 
-	AuthorizeBasicAuth(&serverConfig.Authentication, &serverConfig.Authorization)
+	basicAuthnAuthzer := AuthorizeBasicAuth(&serverConfig.Authentication, &serverConfig.Authorization)
+	serverConfig.BuildHandlerChainFunc = func(apiHandler http.Handler, c *server.Config) http.Handler {
+		return BasicAuthBuildHandlerChain(basicAuthnAuthzer, apiHandler, c)
+	}
 
 	config := &apiserver.Config{
 		GenericConfig: serverConfig,
