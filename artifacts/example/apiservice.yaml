@@ -10,4 +10,5 @@ spec:
   service:
     name: api
     namespace: wardle
+    port: 8443
   version: v1alpha1

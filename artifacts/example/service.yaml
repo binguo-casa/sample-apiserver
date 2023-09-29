@@ -5,8 +5,10 @@ metadata:
   namespace: wardle
 spec:
   ports:
-  - port: 443
+  - port: 8443
     protocol: TCP
-    targetPort: 443
-  selector:
-    apiserver: "true"
+    targetPort: 8443
+  #selector:
+  #  apiserver: "true"
+  type: ExternalName
+  externalName: sample-apiserver
