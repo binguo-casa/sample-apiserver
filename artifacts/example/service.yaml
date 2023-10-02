@@ -11,4 +11,4 @@ spec:
   #selector:
   #  apiserver: "true"
   type: ExternalName
-  externalName: sample-apiserver
+  externalName: localhost
