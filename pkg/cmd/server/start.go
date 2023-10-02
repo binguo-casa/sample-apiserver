@@ -151,7 +151,7 @@ func (o *WardleServerOptions) Config() (*apiserver.Config, error) {
 		return nil, err
 	}
 
-	basicAuthnAuthzer := AuthorizeBasicAuth(&serverConfig.Authentication, &serverConfig.Authorization)
+	basicAuthnAuthzer := AuthorizeBasicAuth(&serverConfig.Authentication, &serverConfig.Authorization, o.RecommendedOptions.Authorization)
 	serverConfig.BuildHandlerChainFunc = func(apiHandler http.Handler, c *server.Config) http.Handler {
 		return BasicAuthBuildHandlerChain(basicAuthnAuthzer, apiHandler, c)
 	}

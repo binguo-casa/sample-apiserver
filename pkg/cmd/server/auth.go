@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
@@ -16,6 +17,7 @@ import (
 	genericfeatures "k8s.io/apiserver/pkg/features"
 	"k8s.io/apiserver/pkg/server"
 	genericfilters "k8s.io/apiserver/pkg/server/filters"
+	genericoptions "k8s.io/apiserver/pkg/server/options"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	flowcontrolrequest "k8s.io/apiserver/pkg/util/flowcontrol/request"
 	"k8s.io/klog/v2"
@@ -34,11 +36,16 @@ type BasicAuthUser struct {
 }
 
 type BasicAuthnAuthzer struct {
-	BasicRealm string
-	BasicUsers map[string]*BasicAuthUser
+	BasicRealm       string
+	BasicUsers       map[string]*BasicAuthUser
+	AlwaysAllowPaths map[string]bool
 }
 
-func NewBasicAuthnAuthzer() *BasicAuthnAuthzer {
+func NewBasicAuthnAuthzer(alwaysAllowPaths []string) *BasicAuthnAuthzer {
+	m := make(map[string]bool, 3)
+	for _, p := range alwaysAllowPaths {
+		m[strings.TrimPrefix(p, "/")] = true
+	}
 	return &BasicAuthnAuthzer{
 		BasicRealm: "testrealm",
 		BasicUsers: map[string]*BasicAuthUser{
@@ -49,13 +56,14 @@ func NewBasicAuthnAuthzer() *BasicAuthnAuthzer {
 				Groups:   []string{"testgroup"},
 			},
 		},
+		AlwaysAllowPaths: m,
 	}
 }
 
 func (auth *BasicAuthnAuthzer) AuthenticateRequest(req *http.Request) (*authenticator.Response, bool, error) {
 	klog.V(4).InfoS("AuthenticateRequest", "URI", req.RequestURI, "Header", req.Header)
-	// when not proxying, check basic auth
-	if req.Header.Get("X-Remote-User") == "" && req.Header.Get("X-Remote-Group") == "" {
+	// when not proxying, check basic auth except always allow paths
+	if !auth.AlwaysAllowPaths[strings.TrimPrefix(req.RequestURI, "/")] && req.Header.Get("X-Remote-User") == "" && req.Header.Get("X-Remote-Group") == "" {
 		username, password, ok := req.BasicAuth()
 		if !ok {
 			return nil, false, fmt.Errorf("BasicAuth required")
@@ -83,6 +91,9 @@ func (auth *BasicAuthnAuthzer) AuthenticateRequest(req *http.Request) (*authenti
 
 func (auth *BasicAuthnAuthzer) Authorize(ctx context.Context, attr authorizer.Attributes) (authorizer.Decision, string, error) {
 	klog.V(4).InfoS("Authorize", "ctx", ctx, "attr", attr)
+	if auth.AlwaysAllowPaths[strings.TrimPrefix(attr.GetPath(), "/")] {
+		return authorizer.DecisionAllow, "", nil
+	}
 	userinfo := attr.GetUser()
 	if userinfo == nil {
 		//klog.V(4).InfoS("NoUser")
@@ -101,8 +112,8 @@ func (auth *BasicAuthnAuthzer) Authorize(ctx context.Context, attr authorizer.At
 }
 
 // See AuthorizeClientBearerToken
-func AuthorizeBasicAuth(authn *server.AuthenticationInfo, authz *server.AuthorizationInfo) *BasicAuthnAuthzer {
-	basicAuthnAuthzer := NewBasicAuthnAuthzer()
+func AuthorizeBasicAuth(authn *server.AuthenticationInfo, authz *server.AuthorizationInfo, delegate *genericoptions.DelegatingAuthorizationOptions) *BasicAuthnAuthzer {
+	basicAuthnAuthzer := NewBasicAuthnAuthzer(delegate.AlwaysAllowPaths)
 	authn.Authenticator = authenticatorunion.NewFailOnError(basicAuthnAuthzer, authn.Authenticator)
 	authz.Authorizer = authorizerunion.New(authz.Authorizer, basicAuthnAuthzer)
 	return basicAuthnAuthzer
